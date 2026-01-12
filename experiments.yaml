@@ -1,0 +1,19 @@
+ssh:
+  # 两台机器，password 在 UI 里输入，不写入文件
+  hosts:
+    - name: a100
+      hostname: "85d8a6d1d2460298.natapp.cc"
+      port: 34654
+      username: "lit"
+
+    - name: lenovo
+      hostname: "269133cb75d05214.natapp.cc"
+      port: 65345
+      username: "inspur"
+
+runtime:
+  conda_env: "brave"
+  logs_dir: "~/exp-logs"
+
+# experiments will be loaded from the "experiments" directory next to this file (experiments/)
+

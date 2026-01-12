@@ -1,0 +1,63 @@
+name: "ant_task"
+description: "ant"
+workdir: "/home/lit/code/brave"
+module: "train.ant.basic.ant_train"
+pre_cmds:
+  - "ulimit -n 4096"
+args:
+  - name: "repeat"
+    type: "int"
+    default: 1
+    help: "Number of repeats"
+
+  - name: "total_timesteps"
+    type: "int"
+    default: 1000000
+    help: "Total timesteps for training"
+
+  - name: "track"
+    type: "bool"
+    bool_style: "presence"
+    default: true
+    help: "Enable tracking"
+
+  - name: "reward_mode"
+    type: "choice"
+    default: "standerd"
+    choices: ['brave','explors','rnd','standerd']
+
+  - name: "r_wrapper_ver"
+    type: "int"
+    default: 4
+    help: "Reward wrapper version"
+
+  - name: "task"
+    type: "choice"
+    default: "speed"
+    choices: ['speed','far','stand']
+
+  - name: "reward_type"
+    type: "str"
+    default: "dense"
+    help: "Reward type (dense/sparse)"
+
+  - name: "ctrl_cost_weight"
+    type: "float"
+    default: 0.05
+    help: "Control cost weight"
+
+  - name: "early_break"
+    type: "bool"
+    bool_style: "negatable"
+    default: false
+    help: "True -> --early_break, False -> --no-early_break"
+
+  - name: "healthy_reward"
+    type: "int"
+    default: 4
+    help: "Healthy reward value"
+
+  - name: "num_threads"
+    type: "int"
+    default: -1
+    help: "Number of threads"

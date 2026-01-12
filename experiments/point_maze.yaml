@@ -1,0 +1,65 @@
+name: "point_maze"
+description: "point maze environment"
+workdir: "/home/lit/code/brave"
+module: "train.point.point_maze_train"
+pre_cmds:
+  - "ulimit -n 4096"
+args:
+  - name: "repeat"
+    type: "int"
+    default: 1
+    help: "Number of repeats"
+
+  - name: "total_timesteps"
+    type: "int"
+    default: 500000
+    help: "Total timesteps for training"
+
+  - name: "track"
+    type: "bool"
+    bool_style: "presence"
+    default: true
+    help: "Enable tracking"
+
+  - name: "reward_mode"
+    type: "choice"
+    default: "standerd"
+    choices: ['brave','explors','standerd']
+
+  # - name: "r_wrapper_ver"
+  #   type: "int"
+  #   default: 4
+  #   help: "Reward wrapper version"
+
+
+  - name: "num_threads"
+    type: "int"
+    default: -1
+    help: "Number of threads"
+  
+  - name: "maze_map_name"
+    type: "choice"
+    default: "U_MAZE"
+    choices: ['U_MAZE']
+  
+  - name: "eval_maze_map_name"
+    type: "choice"
+    default: "U_MAZE"
+    choices: ['U_MAZE_EVAL','U_MAZE_SINGLE_EVAL']
+
+  #brave specific args
+  - name: "use_global_max_bonus"
+    type: "bool"
+    default: true
+
+  - name: "global_bonus"
+    type: "float"
+    default: 5
+
+  - name: "max_episode_steps"
+    type: "int"
+    default: 200
+
+
+
+
