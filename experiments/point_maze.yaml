@@ -40,12 +40,12 @@ args:
   - name: "maze_map_name"
     type: "choice"
     default: "U_MAZE"
-    choices: ['U_MAZE']
+    choices: ['U_MAZE_EVAL','U5_MAZE']
   
   - name: "eval_maze_map_name"
     type: "choice"
     default: "U_MAZE"
-    choices: ['U_MAZE_EVAL','U_MAZE_SINGLE_EVAL']
+    choices: ['U_MAZE_EVAL','U_MAZE_SINGLE_EVAL','U5_MAZE_EVAL','U5_MAZE']
 
   #brave specific args
   - name: "use_global_max_bonus"
