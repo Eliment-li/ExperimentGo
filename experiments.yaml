@@ -5,12 +5,13 @@ ssh:
       hostname: "85d8a6d1d2460298.natapp.cc"
       port: 34654
       username: "lit"
+      workdir: "/home/lit/code/brave"
 
     - name: lenovo
       hostname: "269133cb75d05214.natapp.cc"
       port: 65345
       username: "inspur"
-
+      workdir: "/home/inspur/code/Brave"
 runtime:
   conda_env: "brave"
   logs_dir: "~/exp-logs"

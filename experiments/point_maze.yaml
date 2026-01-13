@@ -1,6 +1,5 @@
 name: "point_maze"
 description: "point maze environment"
-workdir: "/home/lit/code/brave"
 module: "train.point.point_maze_train"
 pre_cmds:
   - "ulimit -n 4096"
@@ -25,12 +24,6 @@ args:
     type: "choice"
     default: "standerd"
     choices: ['brave','explors','standerd']
-
-  # - name: "r_wrapper_ver"
-  #   type: "int"
-  #   default: 4
-  #   help: "Reward wrapper version"
-
 
   - name: "num_threads"
     type: "int"

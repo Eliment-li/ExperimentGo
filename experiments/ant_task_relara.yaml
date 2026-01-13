@@ -1,6 +1,5 @@
 name: "ant_task_relara"
 description: "ant"
-workdir: "/home/lit/code/brave"
 module: "train.ant.basic.relara.ant_train_relara"
 pre_cmds:
   - "ulimit -n 4096"

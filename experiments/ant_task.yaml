@@ -1,6 +1,5 @@
 name: "ant_task"
 description: "ant"
-workdir: "/home/lit/code/brave"
 module: "train.ant.basic.ant_train"
 pre_cmds:
   - "ulimit -n 4096"

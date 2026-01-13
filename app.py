@@ -100,6 +100,7 @@ class Host:
     hostname: str
     port: int
     username: str
+    workdir: str = "~"  # 每个 host 有自己的 workdir
 
 
 @dataclass
@@ -119,7 +120,6 @@ class ArgSpec:
 class ExperimentSpec:
     name: str
     description: str
-    workdir: str
     module: str
     pre_cmds: List[str]
     args: List[ArgSpec]
@@ -133,6 +133,7 @@ def parse_specs(cfg: dict):
             hostname=h["hostname"],
             port=int(h.get("port", 22)),
             username=h["username"],
+            workdir=h.get("workdir", "~"),
         ))
 
     runtime = cfg.get("runtime", {})
@@ -157,7 +158,6 @@ def parse_specs(cfg: dict):
         exps.append(ExperimentSpec(
             name=e["name"],
             description=e.get("description", ""),
-            workdir=e["workdir"],
             module=e["module"],
             pre_cmds=e.get("pre_cmds", []) or [],
             args=args,
@@ -595,7 +595,7 @@ with right:
 			thread_env_exports = ""
 
 		script_info = build_remote_script(
-			workdir=exp.workdir,
+			workdir=host.workdir,
 			conda_env=conda_env,
 			logs_dir=logs_dir,
 			session=session,
