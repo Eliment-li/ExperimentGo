@@ -256,6 +256,21 @@ def build_python_cmd(module: str, args_parts: List[str]) -> str:
     return " ".join(out)
 
 
+def build_thread_env_exports(num_threads: int) -> str:
+    n = int(num_threads)
+    if n <= 0:
+        return ""
+    # If enabled, set common thread envs before running python in the tmux session
+    return (
+        f"export OMP_NUM_THREADS={n}\n"
+        f"export MKL_NUM_THREADS={n}\n"
+        f"export OPENBLAS_NUM_THREADS={n}\n"
+        f"export NUMEXPR_NUM_THREADS={n}\n"
+        "export OMP_PROC_BIND=true\n"
+        "export OMP_PLACES=cores\n"
+    )
+
+
 def build_remote_script(
     *,
     workdir: str,
@@ -264,6 +279,7 @@ def build_remote_script(
     session: str,
     python_cmd: str,
     pre_cmds: List[str],
+    thread_env_exports: str = "",
 ) -> Dict[str, str]:
     log_dir = logs_dir
     log_file = f"{log_dir}/{session}.log"
@@ -271,6 +287,8 @@ def build_remote_script(
     safe_log_file = quote_path_for_shell(log_file)
 
     pre = "\n".join([f"{c}" for c in pre_cmds]) + ("\n" if pre_cmds else "")
+    thread_env = (thread_env_exports or "").rstrip("\n")
+    thread_env = (thread_env + "\n") if thread_env else ""
 
     main_cmd = (
         f"mkdir -p {safe_log_dir}\n"
@@ -283,6 +301,7 @@ def build_remote_script(
         f"CONDA_BASE=$(conda info --base 2>/dev/null) || true\n"
         f"[ -n \"$CONDA_BASE\" ] && [ -f \"$CONDA_BASE/etc/profile.d/conda.sh\" ] && . \"$CONDA_BASE/etc/profile.d/conda.sh\"\n"
         f"conda activate {q(conda_env)}\n"
+        f"{thread_env}"
         f"{python_cmd} |& tee -a {safe_log_file}\n"
         f"echo '[INFO] finished at: '$(date -Is)\n"
     )
@@ -561,9 +580,20 @@ with right:
 		python_cmd = base_python_cmd
 		if use_numactl:
 			node = int(numa_node)
-			node = max(1, min(4, node))
+			# Keep the node exactly as selected by the user (valid options: 0..3)
+			node = max(0, min(3, node))
 			prefix = f"numactl --cpunodebind={node} --membind={node}"
 			python_cmd = f"{prefix} {python_cmd}"
+
+		# Enable thread env exports when num_threads > 0
+		thread_env_exports = ""
+		try:
+			nt = int(params_state.get("num_threads", 0) or 0)
+			if nt > 0:
+				thread_env_exports = build_thread_env_exports(nt)
+		except Exception:
+			thread_env_exports = ""
+
 		script_info = build_remote_script(
 			workdir=exp.workdir,
 			conda_env=conda_env,
@@ -571,6 +601,7 @@ with right:
 			session=session,
 			python_cmd=python_cmd,
 			pre_cmds=exp.pre_cmds,
+			thread_env_exports=thread_env_exports,
 		)
 		log_file = script_info["log_file"]
 		tmux_cmd = script_info["tmux_cmd"]
