@@ -37,7 +37,7 @@ args:
 
   - name: "reward_type"
     type: "str"
-    default: "dense"
+    default: "sparse"
     help: "Reward type (dense/sparse)"
 
   - name: "ctrl_cost_weight"
@@ -60,3 +60,18 @@ args:
     type: "int"
     default: -1
     help: "Number of threads"
+
+  - name: "target_speed"
+    type: "float"
+    default: 3.5
+    help: "Target speed"
+
+  - name: "target_height"
+    type: "float"
+    default: 0.9
+    help: "Target height"
+
+  - name: "target_dist"
+    type: "float"
+    default: 4
+    help: "Target distance"
