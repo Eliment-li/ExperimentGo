@@ -384,22 +384,22 @@ def run_async(coro):
 st.set_page_config(page_title="Remote Experiment Runner", layout="wide")
 st.title("Remote Experiment Runner (Streamlit + tmux + SSH)")
 st.markdown(
-	"""
-	<style>
-		div[data-testid="stDivider"] hr {margin: 0.35rem 0 !important;}
-		section.main > div.block-container {padding-top: 0.5rem; padding-bottom: 0.5rem;}
-		.copy-session {
-			background: none;
-			border: none;
-			color: #1f77b4;
-			cursor: pointer;
-			padding: 0;
-			text-decoration: underline;
-			font-weight: 600;
-		}
-	</style>
-	""",
-	unsafe_allow_html=True,
+    """
+    <style>
+        div[data-testid="stDivider"] hr {margin: 0.15rem 0 !important;}
+        section.main > div.block-container {padding-top: 0.5rem; padding-bottom: 0.5rem;}
+        .copy-session {
+            background: none;
+            border: none;
+            color: #1f77b4;
+            cursor: pointer;
+            padding: 0;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 cfg = load_config()
@@ -461,7 +461,7 @@ with left:
         for idx, a in enumerate(exp.args):
             col = form_cols[idx % len(form_cols)]
             with col:
-                # get current value: session_state -> default
+                # removed toggle UI; parameters are always enabled
                 cur = params_state.get(a.name, a.default)
 
                 label = f"{a.name}"
@@ -545,13 +545,14 @@ with left:
         st.caption("暂无执行记录。")
 
 # build the base python command so the right column can apply NUMA/session controls
+active_params_state = params_state.copy()
 try:
-	args_parts = validate_and_build_args(exp, params_state)
-	base_python_cmd = build_python_cmd(exp.module, args_parts)
-	args_error = None
+    args_parts = validate_and_build_args(exp, active_params_state)
+    base_python_cmd = build_python_cmd(exp.module, args_parts)
+    args_error = None
 except Exception as e:
-	base_python_cmd = None
-	args_error = str(e)
+    base_python_cmd = None
+    args_error = str(e)
 
 with right:
 	st.subheader("2.5) NUMA 绑定（可选）")
@@ -588,7 +589,7 @@ with right:
 		# Enable thread env exports when num_threads > 0
 		thread_env_exports = ""
 		try:
-			nt = int(params_state.get("num_threads", 0) or 0)
+			nt = int(active_params_state.get("num_threads", 0) or 0)
 			if nt > 0:
 				thread_env_exports = build_thread_env_exports(nt)
 		except Exception:
@@ -625,7 +626,7 @@ with right:
 				"session": session,
 				"log_file": log_file,
 				"python_cmd": python_cmd,
-				"params": params_state.copy(),
+				"params": active_params_state.copy(),
 			}
 			now_ts = dt.datetime.now()
 			entry = {
