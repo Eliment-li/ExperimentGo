@@ -1,0 +1,48 @@
+name: "fetch"
+description: "fetch"
+module: "train.fetch.fetch_train"
+pre_cmds:
+  - "ulimit -n 4096"
+args:
+  - name: "repeat"
+    type: "int"
+    default: 1
+    help: "Number of repeats"
+
+  - name: "total_timesteps"
+    type: "int"
+    default: 1000000
+    help: "Total timesteps for training"
+
+  - name: "track"
+    type: "bool"
+    bool_style: "presence"
+    default: true
+    help: "Enable tracking"
+
+  - name: "reward_mode"
+    type: "choice"
+    default: "standerd"
+    choices: ['brave','explors','rnd','standerd']
+
+  - name: "task"
+    type: "choice"
+    default: "reach"
+    choices: ['reach','push']
+
+  # - name: "reward_type"
+  #   type: "str"
+  #   default: "sparse"
+  #   help: "Reward type (dense/sparse)"
+
+  - name: "max_episode_steps"
+    type: "int"
+    default: 100
+    help: "Maximum episode steps"
+
+
+  - name: "num_threads"
+    type: "int"
+    default: -1
+    help: "Number of threads"
+
