@@ -15,9 +15,10 @@ import yaml
 # -----------------------------
 # Utilities
 # -----------------------------
-def load_config(path: str = "experiments.yaml") -> dict:
+def load_config(path: str = "experiments.yaml", private_path: Optional[str] = None) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
+    base_dir = os.path.dirname(path) or "."
 
     def _load_from_dir(dpath: str) -> list:
         out = []
@@ -38,13 +39,45 @@ def load_config(path: str = "experiments.yaml") -> dict:
                 continue
         return out
 
-    # If experiments key is a path string that points to a directory, load files from it
+    def _merge_hosts(base_hosts, override_hosts):
+        base_map = {h.get("name"): dict(h) for h in (base_hosts or []) if isinstance(h, dict)}
+        for oh in override_hosts or []:
+            name = oh.get("name")
+            if not name:
+                continue
+            base_map[name] = {**base_map.get(name, {}), **oh}
+        return list(base_map.values())
+
+    def _merge_cfg(base, override):
+        if not override:
+            return base
+        merged = dict(base)
+        for key, value in override.items():
+            if key == "ssh" and isinstance(value, dict):
+                ssh_section = merged.setdefault("ssh", {})
+                if isinstance(value.get("hosts"), list):
+                    ssh_section["hosts"] = _merge_hosts(ssh_section.get("hosts", []), value["hosts"])
+                for sk, sv in value.items():
+                    if sk != "hosts":
+                        ssh_section[sk] = sv
+            else:
+                merged[key] = value
+        return merged
+
+    private_path = private_path or os.path.join(base_dir, "experiments", "private.yaml")
+    private_cfg = {}
+    if os.path.isfile(private_path):
+        try:
+            with open(private_path, "r", encoding="utf-8") as pf:
+                private_cfg = yaml.safe_load(pf) or {}
+        except Exception:
+            private_cfg = {}
+    cfg = _merge_cfg(cfg, private_cfg)
+
     exps_val = cfg.get("experiments")
     if isinstance(exps_val, str) and os.path.isdir(exps_val):
         cfg["experiments"] = _load_from_dir(exps_val)
     elif exps_val is None:
-        # try default candidate directories next to the config file
-        base_dir = os.path.dirname(path) or "."
         for cand in ("experiments", "experiments.d"):
             cand_path = os.path.join(base_dir, cand)
             if os.path.isdir(cand_path):
@@ -101,6 +134,7 @@ class Host:
     port: int
     username: str
     workdir: str = "~"  # 每个 host 有自己的 workdir
+    password: Optional[str] = None
 
 
 @dataclass
@@ -127,23 +161,40 @@ class ExperimentSpec:
 
 def parse_specs(cfg: dict):
     hosts = []
-    for h in cfg["ssh"]["hosts"]:
+    ssh_cfg = cfg.get("ssh", {})
+    for h in ssh_cfg.get("hosts", []):
+        if not isinstance(h, dict):
+            continue
+        required_host_fields = ("name", "hostname", "username")
+        if any(field not in h for field in required_host_fields):
+            raise ValueError(f"host 配置缺少字段：{required_host_fields}")
         hosts.append(Host(
             name=h["name"],
             hostname=h["hostname"],
             port=int(h.get("port", 22)),
             username=h["username"],
             workdir=h.get("workdir", "~"),
+            password=h.get("password"),
         ))
 
     runtime = cfg.get("runtime", {})
     conda_env = runtime.get("conda_env", "base")
     logs_dir = runtime.get("logs_dir", "~/exp-logs")
 
+    raw_exps = cfg.get("experiments") or []
+    if not isinstance(raw_exps, list):
+        raise ValueError("experiments 配置必须是 list。")
+
     exps = []
-    for e in cfg.get("experiments", []):
+    for e in raw_exps:
+        if not isinstance(e, dict):
+            continue
+        if not e.get("name") or not e.get("module"):
+            continue
         args = []
         for a in e.get("args", []):
+            if not isinstance(a, dict) or "name" not in a or "type" not in a:
+                continue
             args.append(ArgSpec(
                 name=a["name"],
                 type=a["type"],
@@ -162,6 +213,10 @@ def parse_specs(cfg: dict):
             pre_cmds=e.get("pre_cmds", []) or [],
             args=args,
         ))
+
+    if not exps:
+        raise ValueError("未找到有效的实验配置，请检查 experiments/*.yaml。")
+
     return hosts, conda_env, logs_dir, exps
 
 
@@ -322,16 +377,17 @@ async def ssh_run(conn: asyncssh.SSHClientConnection, cmd: str) -> asyncssh.SSHC
 async def start_tmux_session(
     *,
     host: Host,
-    password: str,
     session: str,
     tmux_cmd: str,
 ) -> None:
+    if not host.password:
+        raise RuntimeError(f"Host {host.name} 缺少 password，请在 private.yaml 中配置。")
     async with asyncssh.connect(
         host.hostname,
         port=host.port,
         username=host.username,
-        password=password,
-        known_hosts=None,  # for personal tool; you can tighten later
+        password=host.password,
+        known_hosts=None,
     ) as conn:
         # Ensure tmux exists
         r = await ssh_run(conn, "command -v tmux >/dev/null 2>&1; echo $?")
@@ -353,15 +409,16 @@ async def start_tmux_session(
 async def stream_tail(
     *,
     host: Host,
-    password: str,
     log_file: str,
     n: int = 200,
 ):
+    if not host.password:
+        raise RuntimeError(f"Host {host.name} 缺少 password，请在 private.yaml 中配置。")
     async with asyncssh.connect(
         host.hostname,
         port=host.port,
         username=host.username,
-        password=password,
+        password=host.password,
         known_hosts=None,
     ) as conn:
         safe_log_file = quote_path_for_shell(log_file)
@@ -398,12 +455,38 @@ st.markdown(
             font-weight: 600;
         }
     </style>
+    <script>
+        window.copyToClipboard = async function (text) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    textarea.style.top = '-1000px';
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                }
+            } catch (err) {
+                console.error('copy failed', err);
+                alert('复制失败，请手动复制。');
+            }
+        };
+    </script>
     """,
     unsafe_allow_html=True,
 )
 
 cfg = load_config()
-hosts, conda_env, logs_dir, exps = parse_specs(cfg)
+try:
+    hosts, conda_env, logs_dir, exps = parse_specs(cfg)
+except ValueError as cfg_err:
+    st.error(f"配置错误：{cfg_err}")
+    st.stop()
 
 if "executed_commands" not in st.session_state:
 	st.session_state["executed_commands"] = []
@@ -426,7 +509,10 @@ with left:
     host_name = st.selectbox("远端机器", host_names, index=0)
     host = next(h for h in hosts if h.name == host_name)
 
-    password = st.text_input("SSH 密码（仅本次会话内使用）", type="password")
+    if host.password:
+        st.caption("密码已从 experiments/private.yaml 加载。")
+    else:
+        st.warning("请在 experiments/private.yaml 中为该主机配置 password。")
 
     exp_name = st.selectbox("实验模板", exp_names, index=0)
     exp = next(e for e in exps if e.name == exp_name)
@@ -519,15 +605,18 @@ with left:
                     entry["ts_raw"] = dt.datetime.strptime(entry["ts"], "%Y-%m-%d %H:%M").timestamp()
                 except Exception:
                     entry["ts_raw"] = 0.0
+            entry.setdefault("host", "unknown")
         for entry in sorted(commands, key=lambda e: e.get("ts_raw", 0), reverse=True):
             cols = st.columns([0.8, 0.2], gap="small")
             with cols[0]:
-                copy_cmd = f"tmux a -t {entry['session']}"
-                copy_payload = copy_cmd.replace("'", "\\'")
+                session_val = entry["session"]
+                host_label = entry.get("host", "unknown")
+                copy_session_js = json.dumps(session_val)
+                copy_tmux_js = json.dumps(f"tmux a -t {session_val}")
                 st.markdown(
-                    f"**{entry['ts']}** | Session "
-                    f"<button class='copy-session' onclick=\"navigator.clipboard.writeText('{copy_payload}');return false;\">"
-                    f"{entry['session']}</button>",
+                    f"**{entry['ts']}** | Host `{host_label}` | Session `{session_val}` "
+                    f"<button class='copy-session' onclick='copyToClipboard({copy_session_js});return false;'>复制名称</button>"
+                    f"<button class='copy-session' onclick='copyToClipboard({copy_tmux_js});return false;'>复制 tmux</button>",
                     unsafe_allow_html=True,
                 )
             with cols[1]:
@@ -614,12 +703,12 @@ with right:
 		"Run on remote (tmux)",
 		type="primary",
 		use_container_width=True,
-		disabled=(not password or not tmux_cmd),
+		disabled=(not tmux_cmd or not host.password),
 	)
 
 	if run_clicked:
 		try:
-			run_async(start_tmux_session(host=host, password=password, session=session, tmux_cmd=tmux_cmd))
+			run_async(start_tmux_session(host=host, session=session, tmux_cmd=tmux_cmd))
 			st.success(f"已启动：host={host.name} session={session}")
 			st.session_state["last_run"] = {
 				"host": host.name,
@@ -635,6 +724,7 @@ with right:
 				"ts_raw": now_ts.timestamp(),
 				"session": session,
 				"cmd": python_cmd,
+				"host": host.name,
 			}
 			st.session_state["executed_commands"].append(entry)
 			st.session_state["auto_tail_trigger"] = True
@@ -684,16 +774,15 @@ with right:
 			st.session_state["auto_tail_trigger"] = False
 		should_tail = start_tail or auto_tail
 		if should_tail:
-			if not password:
-				st.warning("请输入密码以 tail 日志。")
+			host2 = next(h for h in hosts if h.name == last["host"])
+			if not host2.password:
+				st.warning("该主机缺少 password，请在 experiments/private.yaml 中配置后再 tail。")
 			else:
-				host2 = next(h for h in hosts if h.name == last["host"])
 				buf: List[str] = []
 				try:
 					async def _run_tail():
 						async for line in stream_tail(
 							host=host2,
-							password=password,
 							log_file=last["log_file"],
 							n=int(lines),
 						):
