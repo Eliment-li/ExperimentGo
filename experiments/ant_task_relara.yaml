@@ -16,7 +16,8 @@ args:
 
   - name: "track"
     type: "bool"
-    bool_style: "presence"
+    #bool_style: "presence"
+    bool_style: "negatable"
     default: true
     help: "Enable tracking"
 
