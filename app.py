@@ -335,6 +335,7 @@ def build_remote_script(
     python_cmd: str,
     pre_cmds: List[str],
     thread_env_exports: str = "",
+    required_bins: Optional[List[str]] = None,
 ) -> Dict[str, str]:
     log_dir = logs_dir
     log_file = f"{log_dir}/{session}.log"
@@ -344,6 +345,14 @@ def build_remote_script(
     pre = "\n".join([f"{c}" for c in pre_cmds]) + ("\n" if pre_cmds else "")
     thread_env = (thread_env_exports or "").rstrip("\n")
     thread_env = (thread_env + "\n") if thread_env else ""
+
+    req = ""
+    for b in (required_bins or []):
+        bb = q(b)
+        req += (
+            f"command -v {bb} >/dev/null 2>&1 || "
+            f"{{ echo '[ERROR] missing required command: {b}. Please install it on remote host.'; exit 127; }}\n"
+        )
 
     main_cmd = (
         f"mkdir -p {safe_log_dir}\n"
@@ -357,6 +366,7 @@ def build_remote_script(
         f"[ -n \"$CONDA_BASE\" ] && [ -f \"$CONDA_BASE/etc/profile.d/conda.sh\" ] && . \"$CONDA_BASE/etc/profile.d/conda.sh\"\n"
         f"conda activate {q(conda_env)}\n"
         f"{thread_env}"
+        f"{req}"
         f"{python_cmd} |& tee -a {safe_log_file}\n"
         f"echo '[INFO] finished at: '$(date -Is)\n"
     )
@@ -498,6 +508,14 @@ if "auto_tail_trigger" not in st.session_state:
 	st.session_state["auto_tail_trigger"] = False
 if "tail_lines" not in st.session_state:
 	st.session_state["tail_lines"] = 50
+if "use_xvfb" not in st.session_state:
+	st.session_state["use_xvfb"] = False
+if "xvfb_w" not in st.session_state:
+	st.session_state["xvfb_w"] = 1280
+if "xvfb_h" not in st.session_state:
+	st.session_state["xvfb_h"] = 720
+if "xvfb_depth" not in st.session_state:
+	st.session_state["xvfb_depth"] = 24
 
 host_names = [h.name for h in hosts]
 exp_names = [e.name for e in exps]
@@ -659,6 +677,23 @@ with right:
 	st.caption("启用后命令前会自动加：numactl --cpunodebind=<node> --membind=<node>")
 	st.divider()
 
+	st.subheader("2.6) Headless 渲染（xvfb，可选）")
+	use_xvfb = st.checkbox(
+		"使用 xvfb-run 包裹命令（用于 MuJoCo/GLFW 录制视频）",
+		key="use_xvfb",
+		help="开启后会在命令前加：xvfb-run -a -s \"-screen 0 WxHxD\"",
+	)
+	cxa, cxb, cxc = st.columns(3)
+	with cxa:
+		xvfb_w = st.number_input("宽 (W)", min_value=320, max_value=3840, value=int(st.session_state["xvfb_w"]), step=64, key="xvfb_w", disabled=not use_xvfb)
+	with cxb:
+		xvfb_h = st.number_input("高 (H)", min_value=240, max_value=2160, value=int(st.session_state["xvfb_h"]), step=64, key="xvfb_h", disabled=not use_xvfb)
+	with cxc:
+		xvfb_depth = st.number_input("色深 (D)", min_value=16, max_value=32, value=int(st.session_state["xvfb_depth"]), step=8, key="xvfb_depth", disabled=not use_xvfb)
+
+	st.caption("示例：-screen 0 1280x720x24（适合录制 rgb_array 视频）")
+	st.divider()
+
 	st.subheader("3) Session / Run")
 	session_prefix = st.text_input("session 前缀（建议写一个实验名）", value=exp.name)
 	session = f"{slugify(session_prefix)}_{now_compact()}"
@@ -668,14 +703,22 @@ with right:
 	log_file = None
 	if base_python_cmd and not args_error:
 		python_cmd = base_python_cmd
+
 		if use_numactl:
 			node = int(numa_node)
-			# Keep the node exactly as selected by the user (valid options: 0..3)
 			node = max(0, min(3, node))
 			prefix = f"numactl --cpunodebind={node} --membind={node}"
 			python_cmd = f"{prefix} {python_cmd}"
 
-		# Enable thread env exports when num_threads > 0
+		required_bins: List[str] = []
+		if use_xvfb:
+			W = int(st.session_state.get("xvfb_w", 1280))
+			H = int(st.session_state.get("xvfb_h", 720))
+			D = int(st.session_state.get("xvfb_depth", 24))
+			server_args = f"-screen 0 {W}x{H}x{D}"
+			python_cmd = f"xvfb-run -a -s {q(server_args)} {python_cmd}"
+			required_bins.append("xvfb-run")
+
 		thread_env_exports = ""
 		try:
 			nt = int(active_params_state.get("num_threads", 0) or 0)
@@ -692,6 +735,7 @@ with right:
 			python_cmd=python_cmd,
 			pre_cmds=exp.pre_cmds,
 			thread_env_exports=thread_env_exports,
+			required_bins=required_bins,
 		)
 		log_file = script_info["log_file"]
 		tmux_cmd = script_info["tmux_cmd"]
