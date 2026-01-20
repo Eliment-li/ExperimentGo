@@ -28,7 +28,7 @@ args:
   - name: "task"
     type: "choice"
     default: "reach"
-    choices: ['reach','push']
+    choices: ['reach','push','slide']
 
   # - name: "reward_type"
   #   type: "str"
