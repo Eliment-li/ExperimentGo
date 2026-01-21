@@ -22,8 +22,8 @@ args:
 
   - name: "reward_mode"
     type: "choice"
-    default: "standerd"
-    choices: ['brave','explors','standerd']
+    default: "standard"
+    choices: ['brave','explors','standard']
 
   - name: "num_threads"
     type: "int"
