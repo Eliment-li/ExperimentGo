@@ -1,0 +1,63 @@
+name: "ant_maze"
+description: "ant maze environment"
+module: "train.ant.maze.ant_maze_train"
+pre_cmds:
+  - "ulimit -n 4096"
+args:
+  - name: "repeat"
+    type: "int"
+    default: 1
+    help: "Number of repeats"
+
+  - name: "total_timesteps"
+    type: "int"
+    default: 500000
+    help: "Total timesteps for training"
+
+  - name: "track"
+    type: "bool"
+    bool_style: "presence"
+    default: true
+    help: "Enable tracking"
+
+  - name: "reward_mode"
+    type: "choice"
+    default: "standard"
+    choices: ['brave','explors','standard']
+
+  - name: "reward_type"
+    type: "str"
+    default: "sparse"
+    help: "Reward type (dense/sparse)"
+
+  - name: "num_threads"
+    type: "int"
+    default: -1
+    help: "Number of threads"
+  
+  - name: "maze_map_name"
+    type: "choice"
+    default: "U_MAZE"
+    choices: ['U_MAZE','U5_MAZE']
+  
+  - name: "eval_maze_map_name"
+    type: "choice"
+    default: "U_MAZE"
+    choices: ['U_MAZE_EVAL','U_MAZE_SINGLE_EVAL','U5_MAZE_EVAL','U5_MAZE']
+
+  #brave specific args
+  - name: "use_global_max_bonus"
+    type: "bool"
+    default: true
+
+  - name: "global_bonus"
+    type: "float"
+    default: 5
+
+  - name: "max_episode_steps"
+    type: "int"
+    default: 200
+
+
+
+
